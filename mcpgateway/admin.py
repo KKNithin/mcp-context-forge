@@ -828,6 +828,7 @@ async def get_configuration_settings(
 
 @admin_router.get("/servers", response_model=List[ServerRead])
 async def admin_list_servers(
+    request: Request,
     include_inactive: bool = False,
     db: Session = Depends(get_db),
     user=Depends(get_current_user_with_permissions),
@@ -935,12 +936,13 @@ async def admin_list_servers(
     """
     LOGGER.debug(f"User {get_user_email(user)} requested server list")
     user_email = get_user_email(user)
-    servers = await server_service.list_servers_for_user(db, user_email, include_inactive=include_inactive)
+    allowed_team_ids = await get_allowed_team_ids(request)
+    servers = await server_service.list_servers_for_user(db, user_email, include_inactive=include_inactive, allowed_team_ids=allowed_team_ids)
     return [server.model_dump(by_alias=True) for server in servers]
 
 
 @admin_router.get("/servers/{server_id}", response_model=ServerRead)
-async def admin_get_server(server_id: str, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
+async def admin_get_server(server_id: str, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
     """
     Retrieve server details for the admin UI.
 
@@ -1033,8 +1035,10 @@ async def admin_get_server(server_id: str, db: Session = Depends(get_db), user=D
         >>> server_service.get_server = original_get_server
     """
     try:
-        LOGGER.debug(f"User {get_user_email(user)} requested details for server ID {server_id}")
-        server = await server_service.get_server(db, server_id)
+        user_email = get_user_email(user)
+        LOGGER.debug(f"User {user_email} requested details for server ID {server_id}")
+        allowed_team_ids = await get_allowed_team_ids(request)
+        server = await server_service.get_server(db, server_id, allowed_team_ids=allowed_team_ids, user_email=user_email)
         return server.model_dump(by_alias=True)
     except ServerNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -1234,6 +1238,7 @@ async def admin_add_server(request: Request, db: Session = Depends(get_db), user
 
         # Ensure default visibility is private and assign to personal team when available
         team_id_cast = typing_cast(Optional[str], team_id)
+        allowed_team_ids = await get_allowed_team_ids(request)
         await server_service.register_server(
             db,
             server,
@@ -1243,6 +1248,8 @@ async def admin_add_server(request: Request, db: Session = Depends(get_db), user
             created_user_agent=creation_metadata["created_user_agent"],
             team_id=team_id_cast,
             visibility=visibility,
+            allowed_team_ids=allowed_team_ids,
+            user_email=user_email,
         )
         return JSONResponse(
             content={"message": "Server created successfully!", "success": True},
@@ -1446,6 +1453,7 @@ async def admin_edit_server(
             owner_email=user_email,
         )
 
+        allowed_team_ids = await get_allowed_team_ids(request)
         await server_service.update_server(
             db,
             server_id,
@@ -1455,6 +1463,7 @@ async def admin_edit_server(
             modified_from_ip=mod_metadata["modified_from_ip"],
             modified_via=mod_metadata["modified_via"],
             modified_user_agent=mod_metadata["modified_user_agent"],
+            allowed_team_ids=allowed_team_ids,
         )
 
         return JSONResponse(
@@ -1708,6 +1717,7 @@ async def admin_delete_server(server_id: str, request: Request, db: Session = De
 
 @admin_router.get("/resources", response_model=List[ResourceRead])
 async def admin_list_resources(
+    request: Request,
     include_inactive: bool = False,
     db: Session = Depends(get_db),
     user=Depends(get_current_user_with_permissions),
@@ -1810,10 +1820,14 @@ async def admin_list_resources(
         >>> # Restore original method
         >>> resource_service.list_resources_for_user = original_list_resources_for_user
     """
-    LOGGER.debug(f"User {get_user_email(user)} requested resource list")
     user_email = get_user_email(user)
-    resources = await resource_service.list_resources_for_user(db, user_email, include_inactive=include_inactive)
+    LOGGER.debug(f"User {user_email} requested resource list")
+    allowed_team_ids = await get_allowed_team_ids(request)
+    resources = await resource_service.list_resources_for_user(db, user_email, include_inactive=include_inactive, allowed_team_ids=allowed_team_ids)
     return [resource.model_dump(by_alias=True) for resource in resources]
+
+
+
 
 
 @admin_router.get("/prompts", response_model=List[PromptRead])
@@ -1927,6 +1941,7 @@ async def admin_list_prompts(
 
 @admin_router.get("/gateways", response_model=List[GatewayRead])
 async def admin_list_gateways(
+    request: Request,
     include_inactive: bool = False,
     db: Session = Depends(get_db),
     user=Depends(get_current_user_with_permissions),
@@ -2028,12 +2043,14 @@ async def admin_list_gateways(
     """
     user_email = get_user_email(user)
     LOGGER.debug(f"User {user_email} requested gateway list")
-    gateways = await gateway_service.list_gateways_for_user(db, user_email, include_inactive=include_inactive)
+    allowed_team_ids = await get_allowed_team_ids(request)
+    gateways = await gateway_service.list_gateways_for_user(db, user_email, include_inactive=include_inactive, allowed_team_ids=allowed_team_ids)
     return [gateway.model_dump(by_alias=True) for gateway in gateways]
 
 
 @admin_router.get("/gateways/ids")
 async def admin_list_gateway_ids(
+    request: Request,
     include_inactive: bool = False,
     db: Session = Depends(get_db),
     user=Depends(get_current_user_with_permissions),
@@ -2055,7 +2072,8 @@ async def admin_list_gateway_ids(
     """
     user_email = get_user_email(user)
     LOGGER.debug(f"User {user_email} requested gateway ids list")
-    gateways = await gateway_service.list_gateways_for_user(db, user_email, include_inactive=include_inactive)
+    allowed_team_ids = await get_allowed_team_ids(request)
+    gateways = await gateway_service.list_gateways_for_user(db, user_email, include_inactive=include_inactive, allowed_team_ids=allowed_team_ids)
     ids = [str(g.id) for g in gateways]
     LOGGER.info(f"Gateway IDs retrieved: {ids}")
     return {"gateway_ids": ids}
@@ -2152,7 +2170,8 @@ async def admin_toggle_gateway(
     is_inactive_checked = str(form.get("is_inactive_checked", "false"))
 
     try:
-        await gateway_service.toggle_gateway_status(db, gateway_id, activate, user_email=user_email)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await gateway_service.toggle_gateway_status(db, gateway_id, activate, user_email=user_email, allowed_team_ids=allowed_team_ids)
     except PermissionError as e:
         LOGGER.warning(f"Permission denied for user {user_email} toggling gateway {gateway_id}: {e}")
         error_message = str(e)
@@ -2323,6 +2342,7 @@ async def admin_ui(
     """
     LOGGER.debug(f"User {get_user_email(user)} accessed the admin UI (team_id={team_id})")
     user_email = get_user_email(user)
+    allowed_team_ids = await get_allowed_team_ids(request)
 
     # --------------------------------------------------------------------------------
     # Load user teams so we can validate team_id
@@ -2417,16 +2437,41 @@ async def admin_ui(
             - This function depends on a global `selected_team_id` variable.
             - If `selected_team_id` is None, the method is called without `team_id`.
         """
-        if selected_team_id is None:
-            return await method(*args, **kwargs)
+        # Prepare extra arguments for access control
+        extra_kwargs = {}
+        if allowed_team_ids is not None:
+            extra_kwargs['allowed_team_ids'] = allowed_team_ids
+        if user_email:
+            extra_kwargs['user_email'] = user_email
 
+        # 1. Try with team_id (if selected) AND access control args
+        if selected_team_id is not None:
+            try:
+                call_kwargs = kwargs.copy()
+                call_kwargs.update(extra_kwargs)
+                call_kwargs['team_id'] = selected_team_id
+                return await method(*args, **call_kwargs)
+            except TypeError:
+                # Method might not accept one of the arguments
+                pass
+            
+            # 2. Try with JUST team_id (legacy behavior)
+            try:
+                return await method(*args, team_id=selected_team_id, **kwargs)
+            except TypeError:
+                LOGGER.debug("Service method %s does not accept team_id; falling back", getattr(method, "__name__", str(method)))
+                pass
+
+        # 3. Try with JUST access control args (no team_id, or if team_id failed/not selected)
         try:
-            # Preferred: pass team_id to the service method if it accepts it
-            return await method(*args, team_id=selected_team_id, **kwargs)
+            call_kwargs = kwargs.copy()
+            call_kwargs.update(extra_kwargs)
+            return await method(*args, **call_kwargs)
         except TypeError:
-            # The method doesn't accept team_id -> fall back to original API
-            LOGGER.debug("Service method %s does not accept team_id; falling back and will post-filter", getattr(method, "__name__", str(method)))
-            return await method(*args, **kwargs)
+             pass
+             
+        # 4. Fallback to original call (no extra args)
+        return await method(*args, **kwargs)
 
     # Small utility to check if a returned model or dict matches the selected_team_id.
     def _matches_selected_team(item, tid: str) -> bool:
@@ -2545,7 +2590,7 @@ async def admin_ui(
         raw_tools = []
 
     try:
-        raw_servers = await _call_list_with_team_support(server_service.list_servers_for_user, db, user_email, include_inactive=include_inactive)
+        raw_servers = await _call_list_with_team_support(server_service.list_servers_for_user, db, user_email, include_inactive=include_inactive, allowed_team_ids=allowed_team_ids)
     except Exception as e:
         LOGGER.exception("Failed to load servers for user: %s", e)
         raw_servers = []
@@ -2563,7 +2608,7 @@ async def admin_ui(
         raw_prompts = []
 
     try:
-        gateways_raw = await _call_list_with_team_support(gateway_service.list_gateways_for_user, db, user_email, include_inactive=include_inactive)
+        gateways_raw = await _call_list_with_team_support(gateway_service.list_gateways_for_user, db, user_email, include_inactive=include_inactive, allowed_team_ids=allowed_team_ids)
     except Exception as e:
         LOGGER.exception("Failed to load gateways: %s", e)
         gateways_raw = []
@@ -2647,6 +2692,7 @@ async def admin_ui(
             db,
             user_info=user_email,
             include_inactive=include_inactive,
+            allowed_team_ids=allowed_team_ids,
         )
         a2a_agents = [agent.model_dump(by_alias=True) for agent in a2a_agents_raw]
         a2a_agents = _to_dict_and_filter(a2a_agents) if isinstance(a2a_agents, (list, tuple)) else a2a_agents
@@ -5458,6 +5504,7 @@ async def admin_force_password_change(
 
 @admin_router.get("/tools")
 async def admin_list_tools(
+    request: Request,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(50, ge=1, le=500, description="Items per page"),
     include_inactive: bool = False,
@@ -5490,9 +5537,8 @@ async def admin_list_tools(
     per_page = max(settings.pagination_min_page_size, min(per_page, settings.pagination_max_page_size))
 
     # Build base query using tool_service's team filtering logic
-    team_service = TeamManagementService(db)
-    user_teams = await team_service.get_user_teams(user_email)
-    team_ids = [team.id for team in user_teams]
+    allowed_team_ids = await get_allowed_team_ids(request)
+    team_ids = allowed_team_ids
 
     # Build query
     query = select(DbTool)
@@ -6489,7 +6535,7 @@ async def admin_search_prompts(
 
 
 @admin_router.get("/tools/{tool_id}", response_model=ToolRead)
-async def admin_get_tool(tool_id: str, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
+async def admin_get_tool(tool_id: str, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
     """
     Retrieve specific tool details for the admin UI.
 
@@ -6579,7 +6625,9 @@ async def admin_get_tool(tool_id: str, db: Session = Depends(get_db), user=Depen
     """
     LOGGER.debug(f"User {get_user_email(user)} requested details for tool ID {tool_id}")
     try:
-        tool = await tool_service.get_tool(db, tool_id)
+        user_email = get_user_email(user)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        tool = await tool_service.get_tool(db, tool_id, allowed_team_ids=allowed_team_ids, user_email=user_email)
         return tool.model_dump(by_alias=True)
     except ToolNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -6782,6 +6830,7 @@ async def admin_add_tool(
 
         # Extract creation metadata
         metadata = MetadataCapture.extract_creation_metadata(request, user)
+        allowed_team_ids = await get_allowed_team_ids(request)
 
         await tool_service.register_tool(
             db,
@@ -6792,6 +6841,8 @@ async def admin_add_tool(
             created_user_agent=metadata["created_user_agent"],
             import_batch_id=metadata["import_batch_id"],
             federation_source=metadata["federation_source"],
+            allowed_team_ids=allowed_team_ids,
+            user_email=user_email,
         )
         return JSONResponse(
             content={"message": "Tool registered successfully!", "success": True},
@@ -7060,6 +7111,7 @@ async def admin_edit_tool(
             modified_via=mod_metadata["modified_via"],
             modified_user_agent=mod_metadata["modified_user_agent"],
             user_email=user_email,
+            allowed_team_ids=await get_allowed_team_ids(request),
         )
         return JSONResponse(content={"message": "Edit tool successfully", "success": True}, status_code=200)
     except PermissionError as e:
@@ -7162,7 +7214,8 @@ async def admin_delete_tool(tool_id: str, request: Request, db: Session = Depend
     LOGGER.debug(f"User {user_email} is deleting tool ID {tool_id}")
     error_message = None
     try:
-        await tool_service.delete_tool(db, tool_id, user_email=user_email)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await tool_service.delete_tool(db, tool_id, user_email=user_email, allowed_team_ids=allowed_team_ids)
     except PermissionError as e:
         LOGGER.warning(f"Permission denied for user {user_email} deleting tool {tool_id}: {e}")
         error_message = str(e)
@@ -7290,7 +7343,8 @@ async def admin_toggle_tool(
     activate = str(form.get("activate", "true")).lower() == "true"
     is_inactive_checked = str(form.get("is_inactive_checked", "false"))
     try:
-        await tool_service.toggle_tool_status(db, tool_id, activate, reachable=activate, user_email=user_email)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await tool_service.toggle_tool_status(db, tool_id, activate, reachable=activate, user_email=user_email, allowed_team_ids=allowed_team_ids)
     except PermissionError as e:
         LOGGER.warning(f"Permission denied for user {user_email} toggling tools {tool_id}: {e}")
         error_message = str(e)
@@ -7313,7 +7367,7 @@ async def admin_toggle_tool(
 
 
 @admin_router.get("/gateways/{gateway_id}", response_model=GatewayRead)
-async def admin_get_gateway(gateway_id: str, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
+async def admin_get_gateway(gateway_id: str, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
     """Get gateway details for the admin UI.
 
     Args:
@@ -7389,9 +7443,11 @@ async def admin_get_gateway(gateway_id: str, db: Session = Depends(get_db), user
         >>> # Restore original method
         >>> gateway_service.get_gateway = original_get_gateway
     """
-    LOGGER.debug(f"User {get_user_email(user)} requested details for gateway ID {gateway_id}")
+    user_email = get_user_email(user)
+    LOGGER.debug(f"User {user_email} requested details for gateway ID {gateway_id}")
     try:
-        gateway = await gateway_service.get_gateway(db, gateway_id)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        gateway = await gateway_service.get_gateway(db, gateway_id, allowed_team_ids=allowed_team_ids, user_email=user_email)
         return gateway.model_dump(by_alias=True)
     except GatewayNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -7686,6 +7742,7 @@ async def admin_add_gateway(request: Request, db: Session = Depends(get_db), use
         metadata = MetadataCapture.extract_creation_metadata(request, user)
 
         team_id_cast = typing_cast(Optional[str], team_id)
+        allowed_team_ids = await get_allowed_team_ids(request)
         await gateway_service.register_gateway(
             db,
             gateway,
@@ -7696,6 +7753,8 @@ async def admin_add_gateway(request: Request, db: Session = Depends(get_db), use
             visibility=visibility,
             team_id=team_id_cast,
             owner_email=user_email,
+            allowed_team_ids=allowed_team_ids,
+            user_email=user_email,
         )
 
         # Provide specific guidance for OAuth Authorization Code flow
@@ -7972,6 +8031,7 @@ async def admin_edit_gateway(
         )
 
         mod_metadata = MetadataCapture.extract_modification_metadata(request, user, 0)
+        allowed_team_ids = await get_allowed_team_ids(request)
         await gateway_service.update_gateway(
             db,
             gateway_id,
@@ -7981,6 +8041,7 @@ async def admin_edit_gateway(
             modified_via=mod_metadata["modified_via"],
             modified_user_agent=mod_metadata["modified_user_agent"],
             user_email=user_email,
+            allowed_team_ids=allowed_team_ids,
         )
         return JSONResponse(
             content={"message": "Gateway updated successfully!", "success": True},
@@ -8082,7 +8143,8 @@ async def admin_delete_gateway(gateway_id: str, request: Request, db: Session = 
     LOGGER.debug(f"User {user_email} is deleting gateway ID {gateway_id}")
     error_message = None
     try:
-        await gateway_service.delete_gateway(db, gateway_id, user_email=user_email)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await gateway_service.delete_gateway(db, gateway_id, user_email=user_email, allowed_team_ids=allowed_team_ids)
     except PermissionError as e:
         LOGGER.warning(f"Permission denied for user {user_email} deleting gateway {gateway_id}: {e}")
         error_message = str(e)
@@ -8188,7 +8250,7 @@ async def admin_test_resource(resource_uri: str, db: Session = Depends(get_db), 
 
 
 @admin_router.get("/resources/{resource_id}")
-async def admin_get_resource(resource_id: int, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
+async def admin_get_resource(resource_id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
     """Get resource details for the admin UI.
 
     Args:
@@ -8276,9 +8338,11 @@ async def admin_get_resource(resource_id: int, db: Session = Depends(get_db), us
     """
     LOGGER.debug(f"User {get_user_email(user)} requested details for resource ID {resource_id}")
     try:
-        resource = await resource_service.get_resource_by_id(db, resource_id)
-        # content = await resource_service.read_resource(db, resource_id=resource_id)
-        return {"resource": resource.model_dump(by_alias=True)}  # , "content": None}
+        user_email = get_user_email(user)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        resource = await resource_service.get_resource_by_id(db, resource_id, allowed_team_ids=allowed_team_ids, user_email=user_email)
+        # content = await resource_service.read_resource(db, resource_id, allowed_team_ids=allowed_team_ids, user_email=user_email)
+        return {"resource": resource.model_dump(by_alias=True), "content": content}
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -8377,6 +8441,7 @@ async def admin_add_resource(request: Request, db: Session = Depends(get_db), us
         )
 
         metadata = MetadataCapture.extract_creation_metadata(request, user)
+        allowed_team_ids = await get_allowed_team_ids(request)
 
         await resource_service.register_resource(
             db,
@@ -8390,6 +8455,8 @@ async def admin_add_resource(request: Request, db: Session = Depends(get_db), us
             team_id=team_id,
             owner_email=user_email,
             visibility=visibility,
+            allowed_team_ids=allowed_team_ids,
+            user_email=user_email,
         )
         return JSONResponse(
             content={"message": "Add resource registered successfully!", "success": True},
@@ -8542,6 +8609,7 @@ async def admin_edit_resource(
             modified_via=mod_metadata["modified_via"],
             modified_user_agent=mod_metadata["modified_user_agent"],
             user_email=get_user_email(user),
+            allowed_team_ids=await get_allowed_team_ids(request),
         )
         return JSONResponse(
             content={"message": "Resource updated successfully!", "success": True},
@@ -8625,7 +8693,8 @@ async def admin_delete_resource(resource_id: str, request: Request, db: Session 
     LOGGER.debug(f"User {get_user_email(user)} is deleting resource ID {resource_id}")
     error_message = None
     try:
-        await resource_service.delete_resource(user["db"] if isinstance(user, dict) else db, resource_id)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await resource_service.delete_resource(user["db"] if isinstance(user, dict) else db, resource_id, user_email=user_email, allowed_team_ids=allowed_team_ids)
     except PermissionError as e:
         LOGGER.warning(f"Permission denied for user {user_email} deleting resource {resource_id}: {e}")
         error_message = str(e)
@@ -8751,7 +8820,8 @@ async def admin_toggle_resource(
     activate = str(form.get("activate", "true")).lower() == "true"
     is_inactive_checked = str(form.get("is_inactive_checked", "false"))
     try:
-        await resource_service.toggle_resource_status(db, resource_id, activate, user_email=user_email)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await resource_service.toggle_resource_status(db, resource_id, activate, user_email=user_email, allowed_team_ids=allowed_team_ids)
     except PermissionError as e:
         LOGGER.warning(f"Permission denied for user {user_email} toggling resource status {resource_id}: {e}")
         error_message = str(e)
@@ -8774,7 +8844,7 @@ async def admin_toggle_resource(
 
 
 @admin_router.get("/prompts/{prompt_id}")
-async def admin_get_prompt(prompt_id: int, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
+async def admin_get_prompt(prompt_id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user_with_permissions)) -> Dict[str, Any]:
     """Get prompt details for the admin UI.
 
     Args:
@@ -8863,7 +8933,9 @@ async def admin_get_prompt(prompt_id: int, db: Session = Depends(get_db), user=D
     """
     LOGGER.info(f"User {get_user_email(user)} requested details for prompt ID {prompt_id}")
     try:
-        prompt_details = await prompt_service.get_prompt_details(db, prompt_id)
+        user_email = get_user_email(user)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        prompt_details = await prompt_service.get_prompt_details(db, prompt_id, allowed_team_ids=allowed_team_ids, user_email=user_email)
         prompt = PromptRead.model_validate(prompt_details)
         return prompt.model_dump(by_alias=True)
     except PromptNotFoundError as e:
@@ -8953,6 +9025,7 @@ async def admin_add_prompt(request: Request, db: Session = Depends(get_db), user
         )
         # Extract creation metadata
         metadata = MetadataCapture.extract_creation_metadata(request, user)
+        allowed_team_ids = await get_allowed_team_ids(request)
 
         await prompt_service.register_prompt(
             db,
@@ -8966,6 +9039,8 @@ async def admin_add_prompt(request: Request, db: Session = Depends(get_db), user
             team_id=team_id,
             owner_email=user_email,
             visibility=visibility,
+            allowed_team_ids=allowed_team_ids,
+            user_email=user_email,
         )
         return JSONResponse(
             content={"message": "Prompt registered successfully!", "success": True},
@@ -9097,6 +9172,7 @@ async def admin_edit_prompt(
             modified_via=mod_metadata["modified_via"],
             modified_user_agent=mod_metadata["modified_user_agent"],
             user_email=user_email,
+            allowed_team_ids=await get_allowed_team_ids(request),
         )
         return JSONResponse(
             content={"message": "Prompt updated successfully!", "success": True},
@@ -9179,7 +9255,8 @@ async def admin_delete_prompt(prompt_id: str, request: Request, db: Session = De
     LOGGER.info(f"User {get_user_email(user)} is deleting prompt id {prompt_id}")
     error_message = None
     try:
-        await prompt_service.delete_prompt(db, prompt_id, user_email=user_email)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await prompt_service.delete_prompt(db, prompt_id, user_email=user_email, allowed_team_ids=allowed_team_ids)
     except PermissionError as e:
         LOGGER.warning(f"Permission denied for user {user_email} deleting prompt {prompt_id}: {e}")
         error_message = str(e)
@@ -9305,7 +9382,8 @@ async def admin_toggle_prompt(
     activate: bool = str(form.get("activate", "true")).lower() == "true"
     is_inactive_checked: str = str(form.get("is_inactive_checked", "false"))
     try:
-        await prompt_service.toggle_prompt_status(db, prompt_id, activate, user_email=user_email)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await prompt_service.toggle_prompt_status(db, prompt_id, activate, user_email=user_email, allowed_team_ids=allowed_team_ids)
     except PermissionError as e:
         LOGGER.warning(f"Permission denied for user {user_email} toggling prompt {prompt_id}: {e}")
         error_message = str(e)
@@ -10343,6 +10421,9 @@ async def admin_import_tools(
 
         # Extract base metadata for bulk import
         base_metadata = MetadataCapture.extract_creation_metadata(request, user, import_batch_id=import_batch_id)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        user_email = get_user_email(user)
+
         for i, item in enumerate(payload):
             name = (item or {}).get("name")
             try:
@@ -10356,6 +10437,8 @@ async def admin_import_tools(
                     created_user_agent=base_metadata["created_user_agent"],
                     import_batch_id=import_batch_id,
                     federation_source=base_metadata["federation_source"],
+                    allowed_team_ids=allowed_team_ids,
+                    user_email=user_email,
                 )
                 created.append({"index": i, "name": name})
             except IntegrityError as ex:
@@ -11159,6 +11242,7 @@ async def admin_list_import_statuses(user=Depends(get_current_user_with_permissi
 @admin_router.get("/a2a/{agent_id}", response_model=A2AAgentRead)
 async def admin_get_agent(
     agent_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     user=Depends(get_current_user_with_permissions),
 ) -> Dict[str, Any]:
@@ -11245,7 +11329,9 @@ async def admin_get_agent(
     """
     LOGGER.debug(f"User {get_user_email(user)} requested details for agent ID {agent_id}")
     try:
-        agent = await a2a_service.get_agent(db, agent_id)
+        user_email = get_user_email(user)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        agent = await a2a_service.get_agent(db, agent_id, allowed_team_ids=allowed_team_ids, user_email=user_email)
         return agent.model_dump(by_alias=True)
     except A2AAgentNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -11256,6 +11342,7 @@ async def admin_get_agent(
 
 @admin_router.get("/a2a")
 async def admin_list_a2a_agents(
+    request: Request,
     include_inactive: bool = False,
     db: Session = Depends(get_db),
     user=Depends(get_current_user_with_permissions),
@@ -11346,10 +11433,12 @@ async def admin_list_a2a_agents(
     LOGGER.debug(f"User {get_user_email(user)} requested A2A Agent list")
     user_email = get_user_email(user)
 
+    allowed_team_ids = await get_allowed_team_ids(request)
     agents = await a2a_service.list_agents_for_user(
         db,
         user_info=user_email,
         include_inactive=include_inactive,
+        allowed_team_ids=allowed_team_ids,
     )
     return [agent.model_dump(by_alias=True) for agent in agents]
 
@@ -11518,6 +11607,7 @@ async def admin_add_a2a_agent(
 
         # Extract metadata from request
         metadata = MetadataCapture.extract_creation_metadata(request, user)
+        allowed_team_ids = await get_allowed_team_ids(request)
 
         await a2a_service.register_agent(
             db,
@@ -11531,6 +11621,8 @@ async def admin_add_a2a_agent(
             team_id=team_id,
             owner_email=user_email,
             visibility=form.get("visibility", "private"),
+            allowed_team_ids=allowed_team_ids,
+            user_email=user_email,
         )
 
         return JSONResponse(
@@ -11834,6 +11926,8 @@ async def admin_edit_a2a_agent(
             modified_from_ip=mod_metadata["modified_from_ip"],
             modified_via=mod_metadata["modified_via"],
             modified_user_agent=mod_metadata["modified_user_agent"],
+            user_email=user_email,
+            allowed_team_ids=await get_allowed_team_ids(request),
         )
 
         return JSONResponse({"message": "A2A agent updated successfully", "success": True}, status_code=200)
@@ -11879,7 +11973,8 @@ async def admin_toggle_a2a_agent(
 
         user_email = get_user_email(user)
 
-        await a2a_service.toggle_agent_status(db, agent_id, activate, user_email=user_email)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await a2a_service.toggle_agent_status(db, agent_id, activate, user_email=user_email, allowed_team_ids=allowed_team_ids)
         root_path = request.scope.get("root_path", "")
         return RedirectResponse(f"{root_path}/admin#a2a-agents", status_code=303)
 
@@ -11933,7 +12028,8 @@ async def admin_delete_a2a_agent(
     error_message = None
     try:
         user_email = get_user_email(user)
-        await a2a_service.delete_agent(db, agent_id, user_email=user_email)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        await a2a_service.delete_agent(db, agent_id, user_email=user_email, allowed_team_ids=allowed_team_ids)
     except PermissionError as e:
         LOGGER.warning(f"Permission denied for user {get_user_email(user)} deleting A2A agent {agent_id}: {e}")
         error_message = str(e)
@@ -11981,7 +12077,9 @@ async def admin_test_a2a_agent(
     try:
         user_email = get_user_email(user)
         # Get the agent by ID
-        agent = await a2a_service.get_agent(db, agent_id)
+        user_email = get_user_email(user)
+        allowed_team_ids = await get_allowed_team_ids(request)
+        agent = await a2a_service.get_agent(db, agent_id, allowed_team_ids=allowed_team_ids, user_email=user_email)
 
         # Prepare test parameters based on agent type and endpoint
         if agent.agent_type in ["generic", "jsonrpc"] or agent.endpoint_url.endswith("/"):
