@@ -272,7 +272,14 @@ def get_user_email(user):
 
 
 async def get_allowed_team_ids(request: Request) -> Optional[List[str]]:
-    """Helper to get allowed team IDs from request state."""
+    """Helper to get allowed team IDs from request state.
+
+    Args:
+        request (Request): FastAPI request object, used to extract user permissions.
+
+    Returns:
+        Optional[List[str]]: List of allowed team IDs or None if not set.
+    """
     if hasattr(request.state, "allowed_team_ids"):
         return request.state.allowed_team_ids
     return None
@@ -1767,6 +1774,7 @@ async def get_server(server_id: str, request: Request, db: Session = Depends(get
 
     Args:
         server_id (str): The ID of the server to retrieve.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): The database session used to interact with the data store.
         user (str): The authenticated user making the request.
 
@@ -1933,6 +1941,7 @@ async def toggle_server_status(
     Args:
         server_id (str): The ID of the server to toggle.
         activate (bool): Whether to activate or deactivate the server.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): The database session used to interact with the data store.
         user (str): The authenticated user making the request.
 
@@ -1963,6 +1972,7 @@ async def delete_server(server_id: str, request: Request = None, db: Session = D
 
     Args:
         server_id (str): The ID of the server to delete.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): The database session used to interact with the data store.
         user (str): The authenticated user making the request.
 
@@ -2121,6 +2131,9 @@ async def server_get_tools(
 
     Returns:
         List[ToolRead]: A list of tool records formatted with by_alias=True.
+
+    Raises:
+        HTTPException: If the server is not found or access is denied.
     """
     logger.debug(f"User: {user} has listed tools for the server_id: {server_id}")
 
@@ -2156,12 +2169,16 @@ async def server_get_resources(
 
     Args:
         server_id (str): ID of the server
+        request (Request): FastAPI request object, used to extract user permissions.
         include_inactive (bool): Whether to include inactive resources in the results.
         db (Session): Database session dependency.
         user (str): Authenticated user dependency.
 
     Returns:
         List[ResourceRead]: A list of resource records formatted with by_alias=True.
+
+    Raises:
+        HTTPException: If the server is not found or access is denied.
     """
     logger.debug(f"User: {user} has listed resources for the server_id: {server_id}")
 
@@ -2197,12 +2214,16 @@ async def server_get_prompts(
 
     Args:
         server_id (str): ID of the server
+        request (Request): FastAPI request object, used to extract user permissions.
         include_inactive (bool): Whether to include inactive prompts in the results.
         db (Session): Database session dependency.
         user (str): Authenticated user dependency.
 
     Returns:
         List[PromptRead]: A list of prompt records formatted with by_alias=True.
+
+    Raises:
+        HTTPException: If the server is not found or access is denied.
     """
     logger.debug(f"User: {user} has listed prompts for the server_id: {server_id}")
 
@@ -2241,6 +2262,7 @@ async def list_a2a_agents(
     Lists A2A agents user has access to with team filtering.
 
     Args:
+        request (Request): FastAPI request object, used to extract user permissions.
         include_inactive (bool): Whether to include inactive agents in the response.
         tags (Optional[str]): Comma-separated list of tags to filter by.
         team_id (Optional[str]): Team ID to filter by.
@@ -2287,6 +2309,7 @@ async def get_a2a_agent(agent_id: str, request: Request, db: Session = Depends(g
 
     Args:
         agent_id (str): The ID of the agent to retrieve.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): The database session used to interact with the data store.
         user (str): The authenticated user making the request.
 
@@ -2460,6 +2483,7 @@ async def toggle_a2a_agent_status(
     Args:
         agent_id (str): The ID of the agent to toggle.
         activate (bool): Whether to activate or deactivate the agent.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): The database session used to interact with the data store.
         user (str): The authenticated user making the request.
 
@@ -2492,6 +2516,7 @@ async def delete_a2a_agent(agent_id: str, request: Request = None, db: Session =
 
     Args:
         agent_id (str): The ID of the agent to delete.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): The database session used to interact with the data store.
         user (str): The authenticated user making the request.
 
@@ -2748,6 +2773,7 @@ async def get_tool(
 
     Args:
         tool_id: The numeric ID of the tool.
+        request (Request): FastAPI request object, used to extract user permissions.
         db:     Active SQLAlchemy session (dependency).
         user:   Authenticated username (dependency).
         apijsonpath: Optional JSON-Path modifier supplied in the body.
@@ -2846,6 +2872,7 @@ async def delete_tool(tool_id: str, request: Request = None, db: Session = Depen
 
     Args:
         tool_id (str): The ID of the tool to delete.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): The database session dependency.
         user (str): The authenticated user making the request.
 
@@ -2884,6 +2911,7 @@ async def toggle_tool_status(
     Args:
         tool_id (str): The ID of the tool to toggle.
         activate (bool): Whether to activate (`True`) or deactivate (`False`) the tool.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): The database session dependency.
         user (str): The authenticated user making the request.
 
@@ -2950,6 +2978,7 @@ async def toggle_resource_status(
     Args:
         resource_id (int): The ID of the resource.
         activate (bool): True to activate, False to deactivate.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): Database session.
         user (str): Authenticated user.
 
@@ -3263,6 +3292,7 @@ async def delete_resource(resource_id: str, request: Request = None, db: Session
 
     Args:
         resource_id (str): ID of the resource to delete.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): Database session.
         user (str): Authenticated user.
 
@@ -3321,6 +3351,7 @@ async def toggle_prompt_status(
     Args:
         prompt_id: ID of the prompt to toggle.
         activate: True to activate, False to deactivate.
+        request (Request): FastAPI request object, used to extract user permissions.
         db: Database session.
         user: Authenticated user.
 
@@ -3672,6 +3703,7 @@ async def delete_prompt(prompt_id: str, request: Request = None, db: Session = D
 
     Args:
         prompt_id: ID of the prompt.
+        request (Request): FastAPI request object, used to extract user permissions.
         db: Database session.
         user: Authenticated user.
 
@@ -3721,6 +3753,7 @@ async def toggle_gateway_status(
     Args:
         gateway_id (str): String ID of the gateway to toggle.
         activate (bool): ``True`` to activate, ``False`` to deactivate.
+        request (Request): FastAPI request object, used to extract user permissions.
         db (Session): Active SQLAlchemy session.
         user (str): Authenticated username.
 
@@ -3885,6 +3918,7 @@ async def get_gateway(gateway_id: str, request: Request, db: Session = Depends(g
 
     Args:
         gateway_id: ID of the gateway.
+        request (Request): FastAPI request object, used to extract user permissions.
         db: Database session.
         user: Authenticated user.
 
@@ -3967,6 +4001,7 @@ async def delete_gateway(gateway_id: str, request: Request = None, db: Session =
 
     Args:
         gateway_id: ID of the gateway.
+        request (Request): FastAPI request object, used to extract user permissions.
         db: Database session.
         user: Authenticated user.
 
