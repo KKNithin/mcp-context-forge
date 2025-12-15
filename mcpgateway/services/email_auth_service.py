@@ -534,7 +534,7 @@ class EmailAuthService:
 
         Examples:
             # admin = await service.create_platform_owner(
-            #     "owner@example.com",
+            #     "admin@example.com",
             #     "admin_password",
             #     "Platform Owner"
             # )
