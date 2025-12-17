@@ -6610,7 +6610,7 @@ async def admin_add_tool(
 
     user_email = get_user_email(user)
     # Determine personal team for default assignment
-    team_id = form.get("team_id", None)
+    team_id = form.get("team_id", "public")
 
     # Parse tags from comma-separated string
     tags_str = str(form.get("tags", ""))
@@ -6883,7 +6883,7 @@ async def admin_edit_tool(
 
     user_email = get_user_email(user)
     # Determine personal team for default assignment
-    team_id = form.get("team_id", None)
+    team_id = form.get("team_id", "public")
     LOGGER.info(f"before Verifying team for user {user_email} with team_id {team_id}")
 
     headers_raw2 = form.get("headers")
@@ -7566,7 +7566,7 @@ async def admin_add_gateway(request: Request, db: Session = Depends(get_db), use
         return JSONResponse(content={"success": False, "message": "; ".join(error_ctx)}, status_code=422)
 
     user_email = get_user_email(user)
-    team_id = form.get("team_id", None)
+    team_id = form.get("team_id", "public")
 
     try:
         # Extract creation metadata
@@ -8243,7 +8243,7 @@ async def admin_add_resource(request: Request, db: Session = Depends(get_db), us
     visibility = str(form.get("visibility", "public"))
     user_email = get_user_email(user)
     # Determine personal team for default assignment
-    team_id = form.get("team_id", None)
+    team_id = form.get("team_id", "public")
 
     try:
         # Handle template field: convert empty string to None for optional field
@@ -8835,7 +8835,7 @@ async def admin_add_prompt(request: Request, db: Session = Depends(get_db), user
     visibility = str(form.get("visibility", "private"))
     user_email = get_user_email(user)
     # Determine personal team for default assignment
-    team_id = form.get("team_id", None)
+    team_id = form.get("team_id", "public")
 
     # Parse tags from comma-separated string
     tags_str = str(form.get("tags", ""))
@@ -8975,7 +8975,7 @@ async def admin_edit_prompt(
     visibility = str(form.get("visibility", "private"))
     user_email = get_user_email(user)
     # Determine personal team for default assignment
-    team_id = form.get("team_id", None)
+    team_id = form.get("team_id", "public")
     LOGGER.info(f"befor Verifying team for user {user_email} with team_id {team_id}")
 
     args_json: str = str(form.get("arguments")) or "[]"
@@ -11336,7 +11336,7 @@ async def admin_add_a2a_agent(
 
         user_email = get_user_email(user)
         # Determine personal team for default assignment
-        team_id = form.get("team_id", None)
+        team_id = form.get("team_id", "public")
 
         # Process tags
         ts_val = form.get("tags", "")
